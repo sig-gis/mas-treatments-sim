@@ -23,7 +23,8 @@ def ee_treatments(hucs:ee.FeatureCollection,
                   radius:ee.Number,
                   pixel_value:ee.Number,
                   constraint_layer:ee.Image,
-                  seed:ee.Number=101010):
+                  seed:ee.Number=101010,
+                  ptOvershoot:ee.Number=2):
   """
   generates a treated area raster within boundaries of one or multiple HUCs
   
@@ -35,6 +36,7 @@ def ee_treatments(hucs:ee.FeatureCollection,
     pixel_value: Integer/ee.Number = pixel value of output image
     constraint_layer: ee.Image = raster mask to constrain treatment centroids to
     seed: ee.Number = random seed to pass to sampling functions
+    ptOvershoot: ee.Number = multiplicative factor of how many random points to place over the requirement.
   returns:
     ee.Image
   """
@@ -46,19 +48,18 @@ def ee_treatments(hucs:ee.FeatureCollection,
   constraintMask = ee.Image(constraint_layer).clip(hucs)
   
   # generate treatment centroid location pts
-  overshoot = 2
   pts = constraintMask.selfMask().sample(**{
     'region':hucs,
     'scale':ee.Number(radius).divide(2).round(),
     'projection':'EPSG:5070',
-    'numPixels':ee.Number(treatment_count).multiply(overshoot).round(),
+    'numPixels':ee.Number(treatment_count).multiply(ptOvershoot).round(),
     'seed':seed,
     'dropNulls':True,
     'tileScale':1,
     'geometries':True}) 
   
   # remove pts too close together
-  pt_spacing = 1.5
+  pt_spacing = 1.5 # this could technically be another user-adjusted dial but trying not overcomplicate things.
   pts_f = distanceFilter(pts,ee.Number(radius).multiply(pt_spacing)).limit(treatment_count)
   ptsSize= pts_f.size()
   
@@ -79,7 +80,7 @@ def ee_treatments(hucs:ee.FeatureCollection,
     'prescriptionAreaAc',ee.Number(prescription).multiply(0.000247105),
     'treatmentsGenerated',ptsSize,
     'treatmentsNeeded',treatment_count,
-    'ptOvershoot',overshoot,
+    'ptOvershoot',ptOvershoot,
     'hucGroupSize',huc_group_size,
     'seed',seed,
     'yearInterval',pixel_value,),
@@ -92,7 +93,7 @@ def ee_treatments(hucs:ee.FeatureCollection,
                   'prescriptionAreaAc':ee.Number(prescription).multiply(0.000247105),
                   'treatmentsGenerated':ptsSize,
                   'treatmentsNeeded':treatment_count,
-                  'ptOvershoot':overshoot,
+                  'ptOvershoot':ptOvershoot,
                   'hucGroupSize':huc_group_size,
                   'seed':seed,
                   'yearInterval':pixel_value,
